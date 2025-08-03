@@ -1,167 +1,102 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabase"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { User, Briefcase, Code, FolderOpen, GraduationCap, Building, Trophy, Award } from "lucide-react"
-
-interface DashboardStats {
-  profiles: number
-  services: number
-  technologies: number
-  projects: number
-  workExperiences: number
-  education: number
-  organizations: number
-  achievements: number
-  certifications: number
-}
+import { useEffect } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useServicesStore } from "@/stores/useServicesStore"
+import { useTechnologiesStore } from "@/stores/useTechnologiesStore"
+import { useProjectsStore } from "@/stores/useProjectsStore"
+import { Briefcase, Code, FolderOpen, Wrench } from "lucide-react"
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats>({
-    profiles: 0,
-    services: 0,
-    technologies: 0,
-    projects: 0,
-    workExperiences: 0,
-    education: 0,
-    organizations: 0,
-    achievements: 0,
-    certifications: 0,
-  })
-  const [loading, setLoading] = useState(true)
+  const { services, fetchServices } = useServicesStore()
+  const { technologies, fetchTechnologies } = useTechnologiesStore()
+  const { projects, fetchProjects } = useProjectsStore()
 
   useEffect(() => {
-    async function fetchStats() {
-      try {
-        const [
-          profilesResult,
-          servicesResult,
-          technologiesResult,
-          projectsResult,
-          workExperiencesResult,
-          educationResult,
-          organizationsResult,
-          achievementsResult,
-          certificationsResult,
-        ] = await Promise.all([
-          supabase.from("profile").select("*", { count: "exact", head: true }),
-          supabase.from("services").select("*", { count: "exact", head: true }),
-          supabase.from("technologies").select("*", { count: "exact", head: true }),
-          supabase.from("projects").select("*", { count: "exact", head: true }),
-          supabase.from("work_experiences").select("*", { count: "exact", head: true }),
-          supabase.from("education").select("*", { count: "exact", head: true }),
-          supabase.from("organizational_experiences").select("*", { count: "exact", head: true }),
-          supabase.from("achievements").select("*", { count: "exact", head: true }),
-          supabase.from("certifications").select("*", { count: "exact", head: true }),
-        ])
+    fetchServices()
+    fetchTechnologies()
+    fetchProjects()
+  }, [fetchServices, fetchTechnologies, fetchProjects])
 
-        setStats({
-          profiles: profilesResult.count || 0,
-          services: servicesResult.count || 0,
-          technologies: technologiesResult.count || 0,
-          projects: projectsResult.count || 0,
-          workExperiences: workExperiencesResult.count || 0,
-          education: educationResult.count || 0,
-          organizations: organizationsResult.count || 0,
-          achievements: achievementsResult.count || 0,
-          certifications: certificationsResult.count || 0,
-        })
-      } catch (error) {
-        console.error("Error fetching stats:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchStats()
-  }, [])
-
-  const statCards = [
-    {
-      title: "Profiles",
-      value: stats.profiles,
-      icon: User,
-      description: "Total profiles",
-    },
+  const stats = [
     {
       title: "Services",
-      value: stats.services,
-      icon: Briefcase,
-      description: "Services offered",
+      value: services.length,
+      description: "Total services offered",
+      icon: Wrench,
     },
     {
       title: "Technologies",
-      value: stats.technologies,
-      icon: Code,
+      value: technologies.length,
       description: "Technologies mastered",
+      icon: Code,
     },
     {
       title: "Projects",
-      value: stats.projects,
-      icon: FolderOpen,
+      value: projects.length,
       description: "Projects completed",
+      icon: FolderOpen,
     },
     {
-      title: "Work Experience",
-      value: stats.workExperiences,
+      title: "Experience",
+      value: "4+",
+      description: "Years of experience",
       icon: Briefcase,
-      description: "Work experiences",
-    },
-    {
-      title: "Education",
-      value: stats.education,
-      icon: GraduationCap,
-      description: "Educational background",
-    },
-    {
-      title: "Organizations",
-      value: stats.organizations,
-      icon: Building,
-      description: "Organizational experiences",
-    },
-    {
-      title: "Achievements",
-      value: stats.achievements,
-      icon: Trophy,
-      description: "Achievements earned",
-    },
-    {
-      title: "Certifications",
-      value: stats.certifications,
-      icon: Award,
-      description: "Certifications obtained",
     },
   ]
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Overview of your portfolio data</p>
+        <p className="text-muted-foreground">Welcome to your portfolio admin dashboard</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {statCards.map((card) => (
-          <Card key={card.title}>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {stats.map((stat) => (
+          <Card key={stat.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{card.title}</CardTitle>
-              <card.icon className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+              <stat.icon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{card.value}</div>
-              <p className="text-xs text-muted-foreground">{card.description}</p>
+              <div className="text-2xl font-bold">{stat.value}</div>
+              <p className="text-xs text-muted-foreground">{stat.description}</p>
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="col-span-4">
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent className="pl-2">
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <div className="ml-4 space-y-1">
+                  <p className="text-sm font-medium leading-none">Portfolio dashboard initialized</p>
+                  <p className="text-sm text-muted-foreground">Admin dashboard is ready for content management</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="col-span-3">
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>Manage your portfolio content</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <p className="text-sm">• Add new services</p>
+              <p className="text-sm">• Update project information</p>
+              <p className="text-sm">• Manage technologies</p>
+              <p className="text-sm">• Edit profile details</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

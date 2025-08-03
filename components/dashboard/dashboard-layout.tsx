@@ -2,44 +2,42 @@
 
 import type React from "react"
 
-import { useAuth } from "@/contexts/auth-context"
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "./app-sidebar"
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
-import { LoginForm } from "@/components/auth/login-form"
+import { useAuth } from "@/contexts/auth-context"
+import { Button } from "@/components/ui/button"
+import { LogOut } from "lucide-react"
 
-interface DashboardLayoutProps {
-  children: React.ReactNode
-}
+export function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { signOut, user } = useAuth()
 
-export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { user, loading } = useAuth()
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return <LoginForm />
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+    } catch (error) {
+      console.error("Error signing out:", error)
+    }
   }
 
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold">Dashboard Admin</h1>
+      <main className="flex-1">
+        <header className="flex items-center justify-between p-4 border-b">
+          <div className="flex items-center gap-4">
+            <SidebarTrigger />
+            <h1 className="text-xl font-semibold">Portfolio Admin</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-muted-foreground">{user?.email}</span>
+            <Button variant="outline" size="sm" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
           </div>
         </header>
-        <main className="flex-1 p-6">{children}</main>
-      </SidebarInset>
+        <div className="p-6">{children}</div>
+      </main>
     </SidebarProvider>
   )
 }

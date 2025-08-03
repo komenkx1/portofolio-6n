@@ -1,24 +1,30 @@
 "use client"
 
-import { User, Briefcase, Code, FolderOpen, GraduationCap, Building, Trophy, Award, Home, LogOut } from "lucide-react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { useAuth } from "@/contexts/auth-context"
+import {
+  Calendar,
+  Home,
+  User,
+  Briefcase,
+  GraduationCap,
+  Award,
+  BadgeIcon as Certificate,
+  Wrench,
+  Code,
+  FolderOpen,
+} from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
-const menuItems = [
+const items = [
   {
     title: "Dashboard",
     url: "/dashboard",
@@ -32,7 +38,7 @@ const menuItems = [
   {
     title: "Services",
     url: "/dashboard/services",
-    icon: Briefcase,
+    icon: Wrench,
   },
   {
     title: "Technologies",
@@ -46,7 +52,7 @@ const menuItems = [
   },
   {
     title: "Work Experience",
-    url: "/dashboard/work-experiences",
+    url: "/dashboard/work-experience",
     icon: Briefcase,
   },
   {
@@ -57,41 +63,33 @@ const menuItems = [
   {
     title: "Organizations",
     url: "/dashboard/organizations",
-    icon: Building,
+    icon: Calendar,
   },
   {
     title: "Achievements",
     url: "/dashboard/achievements",
-    icon: Trophy,
+    icon: Award,
   },
   {
     title: "Certifications",
     url: "/dashboard/certifications",
-    icon: Award,
+    icon: Certificate,
   },
 ]
 
 export function AppSidebar() {
-  const pathname = usePathname()
-  const { signOut } = useAuth()
-
   return (
     <Sidebar>
-      <SidebarHeader>
-        <div className="px-4 py-2">
-          <h2 className="text-lg font-semibold">Portfolio Admin</h2>
-        </div>
-      </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
+          <SidebarGroupLabel>Portfolio Admin</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathname === item.url}>
+                  <SidebarMenuButton asChild>
                     <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
+                      <item.icon />
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -101,14 +99,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
-        <div className="p-4">
-          <Button variant="outline" className="w-full bg-transparent" onClick={() => signOut()}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
-          </Button>
-        </div>
-      </SidebarFooter>
     </Sidebar>
   )
 }
