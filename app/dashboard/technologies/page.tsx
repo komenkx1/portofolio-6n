@@ -1,228 +1,304 @@
 "use client"
 
-import type React from "react"
-
 import { useEffect, useState } from "react"
-import type { ColumnDef } from "@tanstack/react-table"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
+import { Plus, Edit, Trash2, Search } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
-import { DataTable } from "@/components/ui/data-table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import type { Technology } from "@/lib/types"
-import { toast } from "sonner"
-import { MoreHorizontal, Plus, Pencil, Trash2 } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { CrudModal } from "@/components/ui/crud-modal"
+import { DeleteDialog } from "@/components/ui/delete-dialog"
+import { useCrudModal } from "@/hooks/use-crud-modal"
+import { useDeleteDialog } from "@/hooks/use-delete-dialog"
 import { useTechnologiesStore } from "@/stores/useTechnologiesStore"
+import type { Technology } from "@/lib/types"
+
+const technologySchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  category: z.enum(["frontend", "backend", "database", "devops", "mobile", "other"]),
+  proficiency_level: z.enum(["beginner", "intermediate", "advanced", "expert"]),
+  icon_url: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+})
+
+type TechnologyFormData = z.infer<typeof technologySchema>
+
+const categoryColors = {
+  frontend: "bg-blue-100 text-blue-800",
+  backend: "bg-green-100 text-green-800",
+  database: "bg-purple-100 text-purple-800",
+  devops: "bg-orange-100 text-orange-800",
+  mobile: "bg-pink-100 text-pink-800",
+  other: "bg-gray-100 text-gray-800",
+}
+
+const proficiencyColors = {
+  beginner: "bg-red-100 text-red-800",
+  intermediate: "bg-yellow-100 text-yellow-800",
+  advanced: "bg-blue-100 text-blue-800",
+  expert: "bg-green-100 text-green-800",
+}
 
 export default function TechnologiesPage() {
-  const { technologies, loading, fetchTechnologies, createTechnology, updateTechnology, deleteTechnology } =
+  const [searchTerm, setSearchTerm] = useState("")
+  const { technologies, isLoading, fetchTechnologies, createTechnology, updateTechnology, deleteTechnology } =
     useTechnologiesStore()
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingTechnology, setEditingTechnology] = useState<Technology | null>(null)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [technologyToDelete, setTechnologyToDelete] = useState<Technology | null>(null)
-  const [formData, setFormData] = useState({
-    name: "",
-    icon_url: "",
+  const crudModal = useCrudModal<Technology>()
+  const deleteDialog = useDeleteDialog<Technology>()
+
+  const form = useForm<TechnologyFormData>({
+    resolver: zodResolver(technologySchema),
+    defaultValues: {
+      name: "",
+      category: "other",
+      proficiency_level: "beginner",
+      icon_url: "",
+    },
   })
 
   useEffect(() => {
     fetchTechnologies()
   }, [fetchTechnologies])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    try {
-      if (editingTechnology) {
-        await updateTechnology(editingTechnology.id, formData)
-        toast.success("Technology updated successfully")
-      } else {
-        await createTechnology(formData)
-        toast.success("Technology created successfully")
-      }
-
-      setDialogOpen(false)
-      setEditingTechnology(null)
-      setFormData({ name: "", icon_url: "" })
-    } catch (error: any) {
-      toast.error("Failed to save technology")
+  useEffect(() => {
+    if (crudModal.editData) {
+      form.reset({
+        name: crudModal.editData.name,
+        category: crudModal.editData.category,
+        proficiency_level: crudModal.editData.proficiency_level,
+        icon_url: crudModal.editData.icon_url || "",
+      })
+    } else {
+      form.reset({
+        name: "",
+        category: "other",
+        proficiency_level: "beginner",
+        icon_url: "",
+      })
     }
-  }
+  }, [crudModal.editData, form])
 
-  const handleEdit = (technology: Technology) => {
-    setEditingTechnology(technology)
-    setFormData({
-      name: technology.name,
-      icon_url: technology.icon_url || "",
-    })
-    setDialogOpen(true)
+  const filteredTechnologies = technologies.filter(
+    (tech) =>
+      tech.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tech.category.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
+
+  const onSubmit = async (data: TechnologyFormData) => {
+    try {
+      if (crudModal.mode === "create") {
+        await createTechnology(data)
+      } else if (crudModal.editData) {
+        await updateTechnology(crudModal.editData.id, data)
+      }
+      crudModal.close()
+      form.reset()
+    } catch (error) {
+      console.error("Error saving technology:", error)
+    }
   }
 
   const handleDelete = async () => {
-    if (!technologyToDelete) return
-
-    try {
-      await deleteTechnology(technologyToDelete.id)
-      toast.success("Technology deleted successfully")
-      setDeleteDialogOpen(false)
-      setTechnologyToDelete(null)
-    } catch (error: any) {
-      toast.error("Failed to delete technology")
+    if (deleteDialog.deleteData) {
+      try {
+        await deleteTechnology(deleteDialog.deleteData.id)
+        deleteDialog.close()
+      } catch (error) {
+        console.error("Error deleting technology:", error)
+      }
     }
-  }
-
-  const columns: ColumnDef<Technology>[] = [
-    {
-      accessorKey: "name",
-      header: "Name",
-    },
-    {
-      accessorKey: "icon_url",
-      header: "Icon",
-      cell: ({ row }) => {
-        const iconUrl = row.getValue("icon_url") as string
-        return iconUrl ? <div className="text-green-600">✓ Has icon</div> : <div className="text-gray-400">No icon</div>
-      },
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => {
-        const technology = row.original
-
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleEdit(technology)}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  setTechnologyToDelete(technology)
-                  setDeleteDialogOpen(true)
-                }}
-                className="text-red-600"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )
-      },
-    },
-  ]
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
-      </div>
-    )
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Technologies</h1>
-          <p className="text-muted-foreground">Manage your technology stack</p>
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button
-              onClick={() => {
-                setEditingTechnology(null)
-                setFormData({ name: "", icon_url: "" })
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Technology
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <form onSubmit={handleSubmit}>
-              <DialogHeader>
-                <DialogTitle>{editingTechnology ? "Edit Technology" : "Add New Technology"}</DialogTitle>
-                <DialogDescription>
-                  {editingTechnology
-                    ? "Update the technology information below."
-                    : "Fill in the details for the new technology."}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="icon_url">Icon URL</Label>
-                  <Input
-                    id="icon_url"
-                    type="url"
-                    value={formData.icon_url}
-                    onChange={(e) => setFormData({ ...formData, icon_url: e.target.value })}
-                    placeholder="https://example.com/icon.svg"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit">{editingTechnology ? "Update Technology" : "Create Technology"}</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Technologies</h1>
+        <Button onClick={crudModal.openCreate}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Technology
+        </Button>
       </div>
 
-      <DataTable columns={columns} data={technologies} searchKey="name" searchPlaceholder="Search technologies..." />
+      <Card>
+        <CardHeader>
+          <CardTitle>Manage Technologies</CardTitle>
+          <div className="flex items-center space-x-2">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search technologies..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Proficiency</TableHead>
+                <TableHead>Icon</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center">
+                    Loading...
+                  </TableCell>
+                </TableRow>
+              ) : filteredTechnologies.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center">
+                    No technologies found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredTechnologies.map((tech) => (
+                  <TableRow key={tech.id}>
+                    <TableCell className="font-medium">{tech.name}</TableCell>
+                    <TableCell>
+                      <Badge className={categoryColors[tech.category]}>{tech.category}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={proficiencyColors[tech.proficiency_level]}>{tech.proficiency_level}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {tech.icon_url && (
+                        <img src={tech.icon_url || "/placeholder.svg"} alt={tech.name} className="h-8 w-8" />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex space-x-2">
+                        <Button variant="outline" size="sm" onClick={() => crudModal.openEdit(tech)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => deleteDialog.openDelete(tech)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the technology "{technologyToDelete?.name}".
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <CrudModal
+        isOpen={crudModal.isOpen}
+        onClose={crudModal.close}
+        title={crudModal.mode === "create" ? "Add Technology" : "Edit Technology"}
+      >
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Technology name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="frontend">Frontend</SelectItem>
+                      <SelectItem value="backend">Backend</SelectItem>
+                      <SelectItem value="database">Database</SelectItem>
+                      <SelectItem value="devops">DevOps</SelectItem>
+                      <SelectItem value="mobile">Mobile</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="proficiency_level"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Proficiency Level</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select proficiency" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="beginner">Beginner</SelectItem>
+                      <SelectItem value="intermediate">Intermediate</SelectItem>
+                      <SelectItem value="advanced">Advanced</SelectItem>
+                      <SelectItem value="expert">Expert</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="icon_url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Icon URL (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://example.com/icon.png" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="flex justify-end space-x-2">
+              <Button type="button" variant="outline" onClick={crudModal.close}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "Saving..." : crudModal.mode === "create" ? "Create" : "Update"}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </CrudModal>
+
+      <DeleteDialog
+        isOpen={deleteDialog.isOpen}
+        onClose={deleteDialog.close}
+        onConfirm={handleDelete}
+        title="Delete Technology"
+        description={`Are you sure you want to delete "${deleteDialog.deleteData?.name}"? This action cannot be undone.`}
+      />
     </div>
   )
 }

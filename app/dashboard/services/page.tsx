@@ -1,251 +1,243 @@
 "use client"
 
-import type React from "react"
-
 import { useEffect, useState } from "react"
-import type { ColumnDef } from "@tanstack/react-table"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 import { Button } from "@/components/ui/button"
-import { DataTable } from "@/components/ui/data-table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import type { Service } from "@/lib/types"
-import { toast } from "sonner"
-import { MoreHorizontal, Plus, Pencil, Trash2 } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Plus, Edit, Trash2, Search } from "lucide-react"
 import { useServicesStore } from "@/stores/useServicesStore"
+import { useCrudModal } from "@/hooks/use-crud-modal"
+import { useDeleteDialog } from "@/hooks/use-delete-dialog"
+import { CrudModal } from "@/components/ui/crud-modal"
+import { DeleteDialog } from "@/components/ui/delete-dialog"
+import type { Service } from "@/lib/types"
+
+const serviceSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().min(1, "Description is required"),
+  icon_url: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+})
+
+type ServiceFormData = z.infer<typeof serviceSchema>
 
 export default function ServicesPage() {
-  const { services, loading, fetchServices, createService, updateService, deleteService } = useServicesStore()
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingService, setEditingService] = useState<Service | null>(null)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [serviceToDelete, setServiceToDelete] = useState<Service | null>(null)
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    image_url: "",
+  const { services, isLoading, fetchServices, createService, updateService, deleteService } = useServicesStore()
+  const modal = useCrudModal<Service>()
+  const deleteDialog = useDeleteDialog<Service>()
+  const [searchTerm, setSearchTerm] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const form = useForm<ServiceFormData>({
+    resolver: zodResolver(serviceSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      icon_url: "",
+    },
   })
 
   useEffect(() => {
     fetchServices()
   }, [fetchServices])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    try {
-      if (editingService) {
-        await updateService(editingService.id, formData)
-        toast.success("Service updated successfully")
-      } else {
-        await createService(formData)
-        toast.success("Service created successfully")
-      }
-
-      setDialogOpen(false)
-      setEditingService(null)
-      setFormData({ title: "", description: "", image_url: "" })
-    } catch (error: any) {
-      toast.error("Failed to save service")
+  useEffect(() => {
+    if (modal.editingItem) {
+      form.reset({
+        name: modal.editingItem.name,
+        description: modal.editingItem.description,
+        icon_url: modal.editingItem.icon_url || "",
+      })
+    } else {
+      form.reset({
+        name: "",
+        description: "",
+        icon_url: "",
+      })
     }
-  }
+  }, [modal.editingItem, form])
 
-  const handleEdit = (service: Service) => {
-    setEditingService(service)
-    setFormData({
-      title: service.title,
-      description: service.description || "",
-      image_url: service.image_url || "",
-    })
-    setDialogOpen(true)
+  const onSubmit = async (data: ServiceFormData) => {
+    setIsSubmitting(true)
+    try {
+      if (modal.mode === "create") {
+        await createService(data)
+      } else if (modal.editingItem) {
+        await updateService(modal.editingItem.id, data)
+      }
+      modal.close()
+      form.reset()
+    } catch (error) {
+      console.error("Error submitting form:", error)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleDelete = async () => {
-    if (!serviceToDelete) return
-
-    try {
-      await deleteService(serviceToDelete.id)
-      toast.success("Service deleted successfully")
-      setDeleteDialogOpen(false)
-      setServiceToDelete(null)
-    } catch (error: any) {
-      toast.error("Failed to delete service")
+    if (deleteDialog.itemToDelete) {
+      try {
+        await deleteService(deleteDialog.itemToDelete.id)
+        deleteDialog.close()
+      } catch (error) {
+        console.error("Error deleting service:", error)
+      }
     }
   }
 
-  const columns: ColumnDef<Service>[] = [
-    {
-      accessorKey: "title",
-      header: "Title",
-    },
-    {
-      accessorKey: "description",
-      header: "Description",
-      cell: ({ row }) => {
-        const description = row.getValue("description") as string
-        return <div className="max-w-[300px] truncate">{description || "No description"}</div>
-      },
-    },
-    {
-      accessorKey: "image_url",
-      header: "Image",
-      cell: ({ row }) => {
-        const imageUrl = row.getValue("image_url") as string
-        return imageUrl ? (
-          <div className="text-green-600">✓ Has image</div>
-        ) : (
-          <div className="text-gray-400">No image</div>
-        )
-      },
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => {
-        const service = row.original
-
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleEdit(service)}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  setServiceToDelete(service)
-                  setDeleteDialogOpen(true)
-                }}
-                className="text-red-600"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )
-      },
-    },
-  ]
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
-      </div>
-    )
-  }
+  const filteredServices = services.filter(
+    (service) =>
+      service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      service.description.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Services</h1>
-          <p className="text-muted-foreground">Manage your service offerings</p>
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button
-              onClick={() => {
-                setEditingService(null)
-                setFormData({ title: "", description: "", image_url: "" })
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Service
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <form onSubmit={handleSubmit}>
-              <DialogHeader>
-                <DialogTitle>{editingService ? "Edit Service" : "Add New Service"}</DialogTitle>
-                <DialogDescription>
-                  {editingService
-                    ? "Update the service information below."
-                    : "Fill in the details for the new service."}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="title">Title</Label>
-                  <Input
-                    id="title"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={3}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="image_url">Image URL</Label>
-                  <Input
-                    id="image_url"
-                    type="url"
-                    value={formData.image_url}
-                    onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                    placeholder="https://example.com/image.jpg"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit">{editingService ? "Update Service" : "Create Service"}</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Services</h1>
+        <Button onClick={modal.openCreate}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Service
+        </Button>
       </div>
 
-      <DataTable columns={columns} data={services} searchKey="title" searchPlaceholder="Search services..." />
+      <Card>
+        <CardHeader>
+          <CardTitle>Manage Services</CardTitle>
+          <div className="flex items-center space-x-2">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search services..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Icon</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center">
+                    Loading...
+                  </TableCell>
+                </TableRow>
+              ) : filteredServices.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center">
+                    No services found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredServices.map((service) => (
+                  <TableRow key={service.id}>
+                    <TableCell className="font-medium">{service.name}</TableCell>
+                    <TableCell className="max-w-md truncate">{service.description}</TableCell>
+                    <TableCell>
+                      {service.icon_url ? (
+                        <Badge variant="secondary">Has Icon</Badge>
+                      ) : (
+                        <Badge variant="outline">No Icon</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex space-x-2">
+                        <Button variant="outline" size="sm" onClick={() => modal.openEdit(service)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => deleteDialog.openDelete(service)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the service "{serviceToDelete?.title}".
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <CrudModal
+        isOpen={modal.isOpen}
+        onClose={modal.close}
+        title={modal.mode === "create" ? "Add Service" : "Edit Service"}
+      >
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Service name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Service description" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="icon_url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Icon URL (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://example.com/icon.png" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="flex justify-end space-x-2">
+              <Button type="button" variant="outline" onClick={modal.close}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </CrudModal>
+
+      <DeleteDialog
+        isOpen={deleteDialog.isOpen}
+        onClose={deleteDialog.close}
+        onConfirm={handleDelete}
+        title="Delete Service"
+        description={`Are you sure you want to delete "${deleteDialog.itemToDelete?.name}"? This action cannot be undone.`}
+      />
     </div>
   )
 }

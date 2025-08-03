@@ -1,65 +1,68 @@
 import { create } from "zustand"
+import axios from "axios"
+import { toast } from "sonner"
 import type { Service } from "@/lib/types"
-import api from "@/lib/api"
 
 interface ServicesState {
   services: Service[]
-  loading: boolean
-  error: string | null
+  isLoading: boolean
   fetchServices: () => Promise<void>
-  createService: (data: Omit<Service, "id" | "profile_id">) => Promise<void>
+  createService: (data: Omit<Service, "id" | "created_at" | "updated_at">) => Promise<void>
   updateService: (id: string, data: Partial<Service>) => Promise<void>
   deleteService: (id: string) => Promise<void>
 }
 
 export const useServicesStore = create<ServicesState>((set, get) => ({
   services: [],
-  loading: false,
-  error: null,
+  isLoading: false,
 
   fetchServices: async () => {
-    set({ loading: true, error: null })
+    set({ isLoading: true })
     try {
-      const response = await api.get("/services")
-      set({ services: response.data, loading: false })
-    } catch (error: any) {
-      set({ error: error.message, loading: false })
+      const response = await axios.get("/api/services")
+      set({ services: response.data })
+    } catch (error) {
+      toast.error("Failed to fetch services")
+      console.error("Error fetching services:", error)
+    } finally {
+      set({ isLoading: false })
     }
   },
 
   createService: async (data) => {
-    set({ loading: true, error: null })
     try {
-      const response = await api.post("/services", data)
-      const { services } = get()
-      set({ services: [...services, response.data], loading: false })
-    } catch (error: any) {
-      set({ error: error.message, loading: false })
+      const response = await axios.post("/api/services", data)
+      set({ services: [...get().services, response.data] })
+      toast.success("Service created successfully")
+    } catch (error) {
+      toast.error("Failed to create service")
+      throw error
     }
   },
 
   updateService: async (id, data) => {
-    set({ loading: true, error: null })
     try {
-      const response = await api.put(`/services/${id}`, data)
-      const { services } = get()
+      const response = await axios.put(`/api/services/${id}`, data)
       set({
-        services: services.map((s) => (s.id === id ? response.data : s)),
-        loading: false,
+        services: get().services.map((service) => (service.id === id ? response.data : service)),
       })
-    } catch (error: any) {
-      set({ error: error.message, loading: false })
+      toast.success("Service updated successfully")
+    } catch (error) {
+      toast.error("Failed to update service")
+      throw error
     }
   },
 
   deleteService: async (id) => {
-    set({ loading: true, error: null })
     try {
-      await api.delete(`/services/${id}`)
-      const { services } = get()
-      set({ services: services.filter((s) => s.id !== id), loading: false })
-    } catch (error: any) {
-      set({ error: error.message, loading: false })
+      await axios.delete(`/api/services/${id}`)
+      set({
+        services: get().services.filter((service) => service.id !== id),
+      })
+      toast.success("Service deleted successfully")
+    } catch (error) {
+      toast.error("Failed to delete service")
+      throw error
     }
   },
 }))

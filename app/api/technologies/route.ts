@@ -1,31 +1,30 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase"
 
 export async function GET() {
   try {
-    const supabase = createServerClient()
-
-    const { data, error } = await supabase.from("technologies").select("*").order("name")
+    const { data, error } = await supabase.from("technologies").select("*").order("created_at", { ascending: false })
 
     if (error) throw error
 
     return NextResponse.json(data)
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    console.error("Error fetching technologies:", error)
+    return NextResponse.json({ error: "Failed to fetch technologies" }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const supabase = createServerClient()
 
-    const { data, error } = await supabase.from("technologies").insert(body).select().single()
+    const { data, error } = await supabase.from("technologies").insert([body]).select().single()
 
     if (error) throw error
 
-    return NextResponse.json(data)
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data, { status: 201 })
+  } catch (error) {
+    console.error("Error creating technology:", error)
+    return NextResponse.json({ error: "Failed to create technology" }, { status: 500 })
   }
 }
